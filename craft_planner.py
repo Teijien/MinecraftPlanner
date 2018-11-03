@@ -5,6 +5,7 @@ from timeit import default_timer as time
 
 Recipe = namedtuple('Recipe', ['name', 'check', 'effect', 'cost'])
 
+INF = float('inf')
 
 class State(OrderedDict):
     """ This class is a thin wrapper around an OrderedDict, which is simply a dictionary which keeps the order in
@@ -44,7 +45,7 @@ def make_checker(rule):
         # Tip: Do something with rule['Consumes'] and rule['Requires'].
         if 'Consumes' in rule:
             for item, value in rule['Consumes'].items():
-                if value > state[item]:
+                if value > state[item]:  # If what is required is more than what we have
                     return False
 
         if 'Requires' in rule:
@@ -100,17 +101,68 @@ def graph(state):
     # to the given state, and the cost for the rule.
     for r in all_recipes:
         if r.check(state):
-            yield (r.name, r.effect(state), r.cost)
-
-
-def heuristic(state):
-    # Implement your heuristic here!
-    tools = ['bench', 'furnace', 'wooden_pickaxe', 'stone_pickaxe',
+            tools = ['bench', 'furnace', 'wooden_pickaxe', 'stone_pickaxe',
              'iron_pickaxe', 'wooden_axe', 'stone_axe', 'iron_axe']
 
-    for tool in tools:
-        if state[tool] > 1:
-            return float("inf")
+            passing = True
+
+            for tool in tools:
+                if state[tool] > 1:
+                    passing = False
+                    break
+
+            if passing == True:
+                yield (r.name, r.effect(state), r.cost)
+
+
+def heuristic(state, action, last_action):
+    # Implement your heuristic here!
+    #tools = ['bench', 'furnace', 'wooden_pickaxe', 'stone_pickaxe',
+    #         'iron_pickaxe', 'wooden_axe', 'stone_axe', 'iron_axe']
+
+    items = ['coal', 'cobble', 'wood', 'plank', 'stick', 'ore', 'ingot']
+
+    #for tool in tools:
+    #    if state[tool] > 1:
+    #        return INF
+
+    #if state['plank'] > 4 and action is 'craft bench':
+    #    return INF
+
+    #if state['cobble'] > 8 and action is 'craft furnace':
+    #    return INF
+
+    #if last_action == 'craft plank' and action == 'punch for wood':
+    #    return INF
+
+    #if last_action == 'craft stick' and action == 'craft plank':
+    #    return INF
+
+    #if state['coal'] > state['ore']:
+    #    return INF
+
+    #if last_action == 'smelt ore in furnace' and 'for coal' in action:
+    #    return INF
+    #elif 'for coal' in last_action and 'for ore' in action:
+    #    return INF
+
+    #if 'wooden_axe' in action:
+    #    if state['stone_axe'] > 0 or state['iron_axe'] > 0:
+    #        return INF
+    #elif 'stone_axe' in action:
+    #    if state['iron_axe'] > 0:
+    #        return INF
+
+    #if 'wooden_pickaxe' in action:
+    #    if state['stone_pickaxe'] > 0 or state['iron_pickaxe'] > 0:
+    #        return INF
+    #elif 'stone_pickaxe' in action:
+    #    if state['iron_pickaxe'] > 0:
+    #        return INF
+
+    count = 0
+    for item in items:
+        count += state[item]
 
     return 0
 
@@ -122,7 +174,7 @@ def search(graph, state, is_goal, limit, heuristic):
     # When you find a path to the goal return a list of tuples [(state, action)]
     # representing the path. Each element (tuple) of the list represents a state
     # in the path and the action that took you to this state
-    queue = [(0, state, None)]
+    queue = [(0, state, '')]
     times = {}
     times[state] = 0
     backpointers = {}
@@ -131,32 +183,26 @@ def search(graph, state, is_goal, limit, heuristic):
     previous_actions[state] = None
     path = []
 
-    while queue or time() - start_time < limit:
+    while queue and time() - start_time < limit:
         current_time, current_state, previous_action = heappop(queue)
         if is_goal(current_state):
-            path.append((current_state, previous_action))
+            #path.append((current_state, previous_action))
             previous_state = backpointers[current_state]
             while previous_state != None:
-                if previous_state != state:
-                    path.append((previous_state, previous_actions[current_state]))
-                else:
-                    path.append((state, None))
+                path.append((previous_state, previous_actions[previous_state]))
                 current_state = previous_state
                 previous_state = backpointers[previous_state]
-            return path[::-1]   # path.reverse() does not return a value.
-                                # Used an iterator instead.
+            return path[::-1]
 
         state_graph = graph(current_state)
         #print(current_state)
         for next_move in state_graph:
-            #print(current_state)
-            #print(next_move)
             current_action = next_move[0]
             test_state = next_move[1]
             test_cost = next_move[2]
-            pathcost = current_time + test_cost + heuristic(test_state)
+            pathcost = current_time + test_cost + heuristic(test_state, current_action, previous_action)
             if test_state not in times or pathcost < times[test_state]:
-                times[test_state] = pathcost
+                times[test_state] = current_time + test_cost
                 backpointers[test_state] = current_state
                 previous_actions[test_state] = current_action
                 heappush(queue, (pathcost, test_state, current_action))
@@ -206,3 +252,5 @@ if __name__ == '__main__':
         for state, action in resulting_plan:
             print('\t',state)
             print(action)
+
+        print(time())
