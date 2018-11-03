@@ -94,25 +94,98 @@ def make_goal_checker(goal):
     return is_goal
 
 
-def graph(state, backpointers, times):
+def graph(state, action):
     # Iterates through all recipes/rules, checking which are valid in the given state.
     # If a rule is valid, it returns the rule's name, the resulting state after application
     # to the given state, and the cost for the rule.
     for r in all_recipes:
         if r.check(state):
+
             tools = ['bench', 'furnace', 'wooden_pickaxe', 'stone_pickaxe',
                      'iron_pickaxe', 'wooden_axe', 'stone_axe', 'iron_axe']
             passing = True
             for tool in tools:
-                if state[tool] > 1:
+                if r.effect(state)[tool] > 1:
                     passing = False
                     break
+            if passing == False:
+                continue
 
-            if passing == True:
-                yield (r.name, r.effect(state), r.cost)
+            if state['furnace'] > 0:
+                if r.effect(state)['cobble'] > 3:
+                    continue
+            else:
+                if r.effect(state)['cobble'] > 8:
+                    continue
+
+            if r.effect(state)['plank'] > 8:
+                continue
+
+            if r.effect(state)['stick'] > 4:
+                continue
+
+            if r.effect(state)['coal'] > 1:
+                continue
+
+            if r.effect(state)['ore'] > 1:
+                continue
+
+            if r.effect(state)['ingot'] > 6:
+                continue
+
+            if r.effect(state)['wood'] > 1:
+                continue
+
+            if action == 'craft cart at bench' and r.name == 'craft rail at bench':
+                continue
+
+            """if action == 'craft plank' and 'for wood' in r.name:
+                continue
+
+            if action == 'craft stick':
+                if r.name == 'punch for wood' or r.name == 'craft plank':
+                    continue
+            """
+
+            if 'for cobble' in r.name:
+                if state['furnace'] > 0 and state['stone_pickaxe'] > 0 and state['stone_axe'] > 0:
+                    continue
+
+            if 'for ore' in r.name and 'for coal' in action:
+                continue
+
+            if 'for coal' in r.name:
+                if action == 'smelt ore in furnace':
+                    continue
+
+            if 'for coal' in r.name or 'for ore' in r.name:
+                if 'for cobble' in action:
+                    continue
+
+            if r.name == 'smelt ore in furnace' and state['ore'] != state['coal']:
+                continue
+
+            if 'wooden_pickaxe' in r.name:
+                if state['stone_pickaxe'] > 0 or state['iron_pickaxe'] > 0:
+                    continue
+            elif 'stone_pickaxe' in r.name:
+                if state['iron_pickaxe'] > 0:
+                    continue
+
+            if r.name == 'punch for wood':
+                if state['wooden_axe'] > 0 or state['stone_axe'] > 0 or state['iron_axe'] > 0:
+                    continue
+            elif 'wooden_axe' in r.name:
+                if state['stone_axe'] > 0 or state['iron_axe'] > 0:
+                    continue
+            elif 'stone_axe' in r.name:
+                if state['iron_axe'] > 0:
+                    continue
+
+            yield (r.name, r.effect(state), r.cost)
 
 
-def heuristic(state, previous_action, current_action):
+def heuristic(previous_action, current_action):
     # Implement your heuristic here!
     #tools = ['bench', 'furnace', 'wooden_pickaxe', 'stone_pickaxe',
     #         'iron_pickaxe', 'wooden_axe', 'stone_axe', 'iron_axe']
@@ -121,13 +194,15 @@ def heuristic(state, previous_action, current_action):
 #        if state[tool] > 1:
 #            return float("inf")
 
-    count = 0
-    items = [ "coal", "cobble",  "ore", "wood",
-            "plank", "stick", "ingot"]
+    """count = 0
+    items = ["cobble", "coal", "ore", "wood", "plank"]
     for item in items:
-        count = count + state[item]
-
-    return count
+        count += state[item]
+    """
+    if previous_action == current_action:
+        return 0
+    else:
+        return 5
 
 def search(graph, state, is_goal, limit, heuristic):
 
@@ -150,32 +225,34 @@ def search(graph, state, is_goal, limit, heuristic):
         current_time, current_state, previous_action = heappop(queue)
         #print(current_state)
         if is_goal(current_state):
-            #path.append((current_state, previous_action))
+            path.append((current_state, previous_action))
+            print(times[current_state])
             previous_state = backpointers[current_state]
             while previous_state != None:
-
                 path.append((previous_state, previous_actions[previous_state]))
                 current_state = previous_state
                 previous_state = backpointers[previous_state]
-            print(current_time, "\n", time() - start_time)
+            print(time() - start_time)
             return path[::-1]   # path.reverse() does not return a value.
                                 # Used an iterator instead.
 
-        state_graph = graph(current_state, backpointers, times)
+        state_graph = graph(current_state, previous_action)
         #print(current_state)
         for next_move in state_graph:
             #print(current_state)
             #print(next_move)
             current_action = next_move[0]
             test_state = next_move[1]
+            #print(test_state, current_action)
             test_cost = next_move[2]
-            pathcost = current_time + test_cost + heuristic(test_state, previous_action, current_action)
+            pathcost = times[current_state] + test_cost
             if test_state not in times or pathcost < times[test_state]:
-                times[test_state] =  current_time + test_cost
+                times[test_state] = times[current_state] + test_cost
                 backpointers[test_state] = current_state
                 previous_actions[test_state] = current_action
                 heappush(queue, (pathcost, test_state, current_action))
 
+        #print("\n")
     # Failed to find a path
     print(time() - start_time, 'seconds.')
     print("Failed to find a path from", state, 'within time limit.')
