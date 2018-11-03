@@ -66,7 +66,7 @@ def make_effector(rule):
         # This code is called by graph(state) and runs millions of times
         # Tip: Do something with rule['Produces'] and rule['Consumes'].
         next_state = state.copy()   # Has to be state.copy(). Using just state
-                                    
+
         if 'Consumes' in rule:
             for item in rule['Consumes']:
                 next_state[item] = next_state[item] - rule['Consumes'][item]
@@ -94,25 +94,40 @@ def make_goal_checker(goal):
     return is_goal
 
 
-def graph(state):
+def graph(state, backpointers, times):
     # Iterates through all recipes/rules, checking which are valid in the given state.
     # If a rule is valid, it returns the rule's name, the resulting state after application
     # to the given state, and the cost for the rule.
     for r in all_recipes:
         if r.check(state):
-            yield (r.name, r.effect(state), r.cost)
+            tools = ['bench', 'furnace', 'wooden_pickaxe', 'stone_pickaxe',
+                     'iron_pickaxe', 'wooden_axe', 'stone_axe', 'iron_axe']
+            passing = True
+            for tool in tools:
+                if state[tool] > 1:
+                    passing = False
+                    break
+
+            if passing == True:
+                yield (r.name, r.effect(state), r.cost)
 
 
-def heuristic(state):
+def heuristic(state, previous_action, current_action):
     # Implement your heuristic here!
-    tools = ['bench', 'furnace', 'wooden_pickaxe', 'stone_pickaxe',
-             'iron_pickaxe', 'wooden_axe', 'stone_axe', 'iron_axe']
+    #tools = ['bench', 'furnace', 'wooden_pickaxe', 'stone_pickaxe',
+    #         'iron_pickaxe', 'wooden_axe', 'stone_axe', 'iron_axe']
 
-    for tool in tools:
-        if state[tool] > 1:
-            return float("inf")
+#    for tool in tools:
+#        if state[tool] > 1:
+#            return float("inf")
 
-    return 0
+    count = 0
+    items = [ "coal", "cobble",  "ore", "wood",
+            "plank", "stick", "ingot"]
+    for item in items:
+        count = count + state[item]
+
+    return count
 
 def search(graph, state, is_goal, limit, heuristic):
 
@@ -131,22 +146,22 @@ def search(graph, state, is_goal, limit, heuristic):
     previous_actions[state] = None
     path = []
 
-    while queue or time() - start_time < limit:
+    while queue and time() - start_time < limit:
         current_time, current_state, previous_action = heappop(queue)
+        #print(current_state)
         if is_goal(current_state):
-            path.append((current_state, previous_action))
+            #path.append((current_state, previous_action))
             previous_state = backpointers[current_state]
             while previous_state != None:
-                if previous_state != state:
-                    path.append((previous_state, previous_actions[current_state]))
-                else:
-                    path.append((state, None))
+
+                path.append((previous_state, previous_actions[previous_state]))
                 current_state = previous_state
                 previous_state = backpointers[previous_state]
+            print(current_time, "\n", time() - start_time)
             return path[::-1]   # path.reverse() does not return a value.
                                 # Used an iterator instead.
 
-        state_graph = graph(current_state)
+        state_graph = graph(current_state, backpointers, times)
         #print(current_state)
         for next_move in state_graph:
             #print(current_state)
@@ -154,9 +169,9 @@ def search(graph, state, is_goal, limit, heuristic):
             current_action = next_move[0]
             test_state = next_move[1]
             test_cost = next_move[2]
-            pathcost = current_time + test_cost + heuristic(test_state)
+            pathcost = current_time + test_cost + heuristic(test_state, previous_action, current_action)
             if test_state not in times or pathcost < times[test_state]:
-                times[test_state] = pathcost
+                times[test_state] =  current_time + test_cost
                 backpointers[test_state] = current_state
                 previous_actions[test_state] = current_action
                 heappush(queue, (pathcost, test_state, current_action))
@@ -203,6 +218,10 @@ if __name__ == '__main__':
 
     if resulting_plan:
         # Print resulting plan
+        count = 0
         for state, action in resulting_plan:
             print('\t',state)
             print(action)
+            count += 1
+
+        print(count)
